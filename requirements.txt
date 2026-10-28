@@ -1,0 +1,8 @@
+playwright>=1.40.0
+Pillow>=10.0.0
+requests>=2.31.0
+tqdm>=4.66.0
+anthropic>=0.18.0
+google-generativeai>=0.4.0
+faster-whisper
+cryptography>=42.0.0

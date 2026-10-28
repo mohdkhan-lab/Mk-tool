@@ -1,0 +1,7 @@
+{
+ "enabled": true,
+ "style": "smooth_rise",
+ "color": "yellow",
+ "position": "bottom",
+ "size": "small"
+}
