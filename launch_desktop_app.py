@@ -178,7 +178,7 @@ def wait_for_server(port: int, timeout_sec: float = 18.0) -> bool:
 
 def main():
     print("=" * 70)
-    print("        FRAMELOOM - BY TJ X SHOAIB X SONI - DESKTOP APP RUNNER")
+    print("        MK STORYSTUDIO - BY MK - DESKTOP APP RUNNER")
     print("=" * 70)
     print()
 
@@ -221,7 +221,7 @@ def main():
 
     # Find Desktop App browser
     browser_exe = find_browser_executable()
-    profile_dir = os.path.join(os.environ.get("LOCALAPPDATA", ROOT_DIR), "StickFilmStudio_AppProfile")
+    profile_dir = os.path.join(os.environ.get("LOCALAPPDATA", ROOT_DIR), "MKStoryStudio_AppProfile")
     os.makedirs(profile_dir, exist_ok=True)
 
     try:

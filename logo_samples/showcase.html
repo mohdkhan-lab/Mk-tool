@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MK StoryStudio — Official Logo Concepts</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #090D16;
+      color: #E2E8F0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 40px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    h1 {
+      font-size: 38px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #00F2FE 0%, #4FACFE 50%, #9B51E0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+    p.subtitle {
+      font-size: 17px;
+      color: #94A3B8;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 28px;
+      max-width: 1250px;
+      width: 100%;
+    }
+    .card {
+      background: rgba(18, 24, 38, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: all 0.3s ease;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .card:hover {
+      transform: translateY(-6px);
+      border-color: rgba(79, 172, 254, 0.5);
+      box-shadow: 0 16px 40px rgba(79, 172, 254, 0.2);
+    }
+    .img-box {
+      width: 220px;
+      height: 220px;
+      border-radius: 46px;
+      overflow: hidden;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.6);
+      margin-bottom: 20px;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .img-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .card-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #FFF;
+      text-align: center;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    .badge-cyan { background: rgba(0, 242, 254, 0.15); color: #00F2FE; border: 1px solid rgba(0, 242, 254, 0.3); }
+    .badge-orange { background: rgba(255, 81, 47, 0.15); color: #FF512F; border: 1px solid rgba(255, 81, 47, 0.3); }
+    .badge-mint { background: rgba(0, 245, 160, 0.15); color: #00F5A0; border: 1px solid rgba(0, 245, 160, 0.3); }
+    .badge-ai { background: linear-gradient(135deg, rgba(255, 0, 128, 0.2), rgba(121, 40, 202, 0.2)); color: #FF0080; border: 1px solid rgba(255, 0, 128, 0.4); }
+    .desc {
+      font-size: 13px;
+      color: #94A3B8;
+      text-align: center;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>MK StoryStudio — Logo Concepts</h1>
+    <p class="subtitle">Choose your favorite icon for the desktop app, installer & taskbar</p>
+  </header>
+
+  <div class="grid">
+    <!-- Concept 1 -->
+    <div class="card">
+      <div class="img-box">
+        <img src="MK_StoryStudio_Concept_1_CyberNeon.png" alt="Concept 1">
+      </div>
+      <div class="card-title">Concept 1: Cyber Neon</div>
+      <span class="badge badge-cyan">Electric Cyan & Royal Purple</span>
+      <p class="desc">Futuristic interlocking MK monogram with bold play button geometry. Modern creator aesthetic matching the dark studio theme.</p>
+    </div>
+
+    <!-- Concept 4 (AI 3D Glass) -->
+    <div class="card">
+      <div class="img-box">
+        <img src="MK_StoryStudio_Concept_4_3DGlass.jpg" alt="Concept 4">
+      </div>
+      <div class="card-title">Concept 2: 3D Glassmorphic ⭐</div>
+      <span class="badge badge-ai">3D Glass & Neon Glow</span>
+      <p class="desc">Photorealistic frosted glass squircle with ambient neon reflections and stylized video timeline curves. Looks stunning on Windows 11.</p>
+    </div>
+
+    <!-- Concept 2 -->
+    <div class="card">
+      <div class="img-box">
+        <img src="MK_StoryStudio_Concept_2_SunsetForge.png" alt="Concept 2">
+      </div>
+      <div class="card-title">Concept 3: Sunset Forge</div>
+      <span class="badge badge-orange">Fiery Sunset & Magenta</span>
+      <p class="desc">High-energy warm gradient representing passion, viral retention, and dynamic storytelling motion.</p>
+    </div>
+
+    <!-- Concept 3 -->
+    <div class="card">
+      <div class="img-box">
+        <img src="MK_StoryStudio_Concept_3_EmeraldTech.png" alt="Concept 3">
+      </div>
+      <div class="card-title">Concept 4: Mint Cyber</div>
+      <span class="badge badge-mint">Mint Emerald & Deep Cyan</span>
+      <p class="desc">Ultra-clean, minimalist tech icon. High contrast and razor sharp on taskbar and small resolutions.</p>
+    </div>
+  </div>
+</body>
+</html>
+

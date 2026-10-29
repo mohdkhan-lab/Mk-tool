@@ -2337,7 +2337,33 @@ class Handler(BaseHTTPRequestHandler):
         # The catch-all below answers every unmatched GET with the dashboard
         # page, so without this route a browser asking for /favicon.ico got
         # 200 text/html and fell back to its generic globe in the taskbar.
-        if path in ("/favicon.ico", "/stickfilm_icon.ico"):
+        if path == "/app_icon.png":
+            for cand in (os.path.join(ROOT_DIR, "app_icon.png"), os.path.join(HERE, "assets", "app_icon.png")):
+                if os.path.isfile(cand):
+                    with open(cand, "rb") as f:
+                        blob = f.read()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "image/png")
+                    self.send_header("Content-Length", str(len(blob)))
+                    self.send_header("Cache-Control", "no-cache")
+                    self.end_headers()
+                    self.wfile.write(blob)
+                    return
+            self.send_error(404)
+            return
+
+        if path in ("/favicon.ico", "/stickfilm_icon.ico", "/app.ico"):
+            for cand in (os.path.join(ROOT_DIR, "app.ico"), os.path.join(HERE, "assets", "frameloom.ico")):
+                if os.path.isfile(cand):
+                    with open(cand, "rb") as f:
+                        blob = f.read()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "image/x-icon")
+                    self.send_header("Content-Length", str(len(blob)))
+                    self.send_header("Cache-Control", "no-cache")
+                    self.end_headers()
+                    self.wfile.write(blob)
+                    return
             for cand in (os.path.join(HERE, "assets", "frameloom.ico"),
                          os.path.join(ROOT_DIR, "stickfilm_icon.ico"),
                          os.path.join(HERE, "stickfilm_icon.ico")):
