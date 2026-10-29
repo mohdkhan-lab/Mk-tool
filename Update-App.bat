@@ -25,3 +25,4 @@ if exist update.zip (
     echo [ERROR] Update download fail ho gaya. Internet connection check karein.
 )
 pause
+

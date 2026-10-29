@@ -8,4 +8,8 @@ ai_avatar_pipeline/browser_profiles/
 vidgen/projects/
 *.tmp
 temp_update/
-update.zip
+dist/
+*.zip
+*.exe
+!Mk-Tool.exe
+
