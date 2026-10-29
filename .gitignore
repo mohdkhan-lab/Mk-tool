@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+.server_session.json
+my_cloned_voices.json
+ai_avatar_pipeline/browser_profiles/
+vidgen/projects/
+*.tmp
+temp_update/
+update.zip
