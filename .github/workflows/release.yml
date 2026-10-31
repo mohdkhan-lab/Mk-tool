@@ -64,11 +64,11 @@ jobs:
           Copy-Item "$($bin.FullName)\ffmpeg.exe" payload\app\tools\
           Copy-Item "$($bin.FullName)\ffprobe.exe" payload\app\tools\
           $fonts = @{
-            "LuckiestGuy.ttf" = "https://github.com/google/fonts/raw/main/ofl/luckiestguy/LuckiestGuy-Regular.ttf"
-            "TitanOne.ttf"    = "https://github.com/google/fonts/raw/main/ofl/titanone/TitanOne-Regular.ttf"
-            "LilitaOne.ttf"   = "https://github.com/google/fonts/raw/main/ofl/lilitaone/LilitaOne-Regular.ttf"
-            "Bangers.ttf"     = "https://github.com/google/fonts/raw/main/ofl/bangers/Bangers-Regular.ttf"
-            "Anton.ttf"       = "https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regular.ttf"
+            "LuckiestGuy.ttf" = "https://raw.githubusercontent.com/google/fonts/main/apache/luckiestguy/LuckiestGuy-Regular.ttf"
+            "TitanOne.ttf"    = "https://raw.githubusercontent.com/google/fonts/main/ofl/titanone/TitanOne-Regular.ttf"
+            "LilitaOne.ttf"   = "https://raw.githubusercontent.com/google/fonts/main/ofl/lilitaone/LilitaOne-Regular.ttf"
+            "Bangers.ttf"     = "https://raw.githubusercontent.com/google/fonts/main/ofl/bangers/Bangers-Regular.ttf"
+            "Anton.ttf"       = "https://raw.githubusercontent.com/google/fonts/main/ofl/anton/Anton-Regular.ttf"
           }
           foreach ($k in $fonts.Keys) {
             Invoke-WebRequest $fonts[$k] -OutFile "payload\app\tools\fonts\$k"
