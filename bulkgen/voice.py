@@ -254,19 +254,91 @@ def fit_length(out, target):
     return now
 
 
+def _load_tts():
+    """The Voice panel's provider module (vidgen/tts.py).
+
+    Imported lazily: the ai33 path must not depend on it, and this file
+    is also imported by stages that never speak (alignment reads only
+    GAP_SEC from here).
+    """
+    try:
+        import tts
+        return tts
+    except ImportError:
+        pass
+    vidgen = os.path.join(os.path.dirname(os.path.abspath(AI_PIPE)), "vidgen")
+    if os.path.isdir(vidgen) and vidgen not in sys.path:
+        sys.path.insert(0, vidgen)
+    try:
+        import tts
+        return tts
+    except ImportError:
+        raise RuntimeError("Voice providers module (tts.py) nahi mila - "
+                           "app update karke phir try karo.")
+
+
+# ai33 voice ids carry their engine as a prefix (elevenlabs_..., edge_...).
+_ENGINE_PREFIXES = ("elevenlabs_", "minimax_", "fishaudio_", "vbee_",
+                    "kokoro_", "clone_", "edge_")
+
+
+def _provider_voice(tts, engine, wanted):
+    """Map the project's saved voice onto another provider.
+
+    A project stores an ai33 voice — a clone name ("STIckman Voice") or
+    a prefixed id ("elevenlabs_..."). The id behind an `elevenlabs_`
+    prefix IS that provider's voice id, so it carries over; anything
+    unrecognisable falls back to the provider's default voice rather
+    than being guessed at.
+    """
+    raw = (wanted or "").strip()
+    for pre in _ENGINE_PREFIXES:
+        if raw.startswith(pre):
+            raw = raw[len(pre):]
+            break
+    if engine in ("edge", "sarvam", "openai", "kokoro"):
+        voices = tts.list_voices(engine)["voices"]
+        names = {v["id"]: v["name"] for v in voices}
+        if raw in names:
+            return raw, names[raw]
+        vid = tts.default_voice(engine)
+        return vid, names.get(vid, vid)
+    # Providers whose voice ids are opaque (ElevenLabs, Cartesia,
+    # Google, Azure): a carried-over id is used as-is. With none, there
+    # is no safe default — say what to do instead of picking at random.
+    if raw and " " not in raw:
+        return raw, raw
+    raise RuntimeError(
+        "%s ke liye project ki voice set nahi hai. Project ki voice is "
+        "provider ki voice id par set karo (Voice panel me 'Load "
+        "Voices' se id mil jayegi)." % engine)
+
+
 def generate(pid, script_path, voice, api_key, model=DEFAULT_MODEL, speed=1.0,
-             gap=GAP_SEC, force=False, provider="clone", target=None):
-    """The whole stage: script in, `voiceover.mp3` out."""
+             gap=GAP_SEC, force=False, provider="clone", target=None,
+             engine="ai33"):
+    """The whole stage: script in, `voiceover.mp3` out.
+
+    `engine` is the production voiceover provider the buyer picked in
+    API Keys: "ai33" (the original path — voices through the ai33
+    account) or any provider from the Voice panel's tts module, spoken
+    piece by piece through that module's own generate().
+    """
     with open(script_path, encoding="utf-8-sig") as f:
         script = f.read()
     if not script.strip():
         raise ValueError(f"{script_path} is empty")
 
-    try:
-        voice_id, voice_name = resolve(api_key, voice, provider)
-    except Exception as e:
-        log("voice", f"Failed to resolve AI33 voice, falling back to edge-tts: {e}")
-        voice_id, voice_name = "en-US-GuyNeural", "Edge-TTS Guy"
+    _tts = None
+    if engine == "ai33":
+        try:
+            voice_id, voice_name = resolve(api_key, voice, provider)
+        except Exception as e:
+            log("voice", f"Failed to resolve AI33 voice, falling back to edge-tts: {e}")
+            voice_id, voice_name = "en-US-GuyNeural", "Edge-TTS Guy"
+    else:
+        _tts = _load_tts()
+        voice_id, voice_name = _provider_voice(_tts, engine, voice)
     pieces = split_script(script)
     log("voice", f'{voice_name} ({voice_id}) — {len(script)} chars in {len(pieces)} piece(s)')
 
@@ -288,6 +360,12 @@ def generate(pid, script_path, voice, api_key, model=DEFAULT_MODEL, speed=1.0,
         pending = None                    # a task ai33 accepted but had not finished
         for attempt in range(1, 4):
             try:
+                if _tts is not None:
+                    # Another provider, through the Voice panel's own
+                    # generate() — the piece lands at this exact path.
+                    _tts.generate_to_file(engine, voice_id, piece, part)
+                    last = None
+                    break
                 if voice_id == "en-US-GuyNeural":
                     run([sys.executable, "-m", "edge_tts", "--voice", "en-US-GuyNeural", "--text", piece, "--write-media", part])
                     last = None
@@ -298,6 +376,14 @@ def generate(pid, script_path, voice, api_key, model=DEFAULT_MODEL, speed=1.0,
                 last = None
                 break
             except Exception as exc:      # network far more often than request
+                if _tts is not None:
+                    # A key problem will be refused again on every
+                    # retry: say it once, clearly, and stop.
+                    if "API key" in str(exc):
+                        raise
+                    last = exc
+                    log("voice", f"  {i:03d} attempt {attempt} failed: {exc}")
+                    continue
                 # A refused key will be refused again: say what to do, now.
                 if "401" in str(exc) or "Unauthorized" in str(exc):
                     raise RuntimeError(
@@ -339,7 +425,8 @@ def generate(pid, script_path, voice, api_key, model=DEFAULT_MODEL, speed=1.0,
     spoken = probe(out)
     natural_wpm = round(len(script.split()) / spoken * 60 / speed, 1) if spoken > 0 else None
     duration = fit_length(out, target)
-    save_state(pid, voice_id=voice_id, voice_name=voice_name, tts_model=model,
+    save_state(pid, voice_id=voice_id, voice_name=voice_name,
+               tts_model=(model if engine == "ai33" else engine),
                script=os.path.abspath(script_path), pieces=len(pieces),
                script_sha256=hashlib.sha256(script.encode("utf-8")).hexdigest(),
                voiceover=out, duration=duration, speed=speed, target=target,

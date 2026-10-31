@@ -11,6 +11,12 @@ ever sent to the provider the user picked.
 Generated audio lands in the user data folder (`tts_outputs/`) and is
 played back / downloaded from the panel. Nothing here talks to any
 server except the chosen TTS provider.
+
+The same key store also serves the production pipeline: the API Keys
+window saves these providers' keys here too (one store, not two), and
+the buyer's production-voiceover provider choice is kept beside the
+keys (`tts_settings.json`) so `pipeline.py` — a separate process —
+reads the same choice the window shows.
 """
 
 import asyncio
@@ -56,6 +62,105 @@ def _load_keys():
 def _save_keys(data):
     with open(_keys_path(), "w", encoding="utf-8") as f:
         json.dump(data, f)
+
+
+def _settings_path():
+    return os.path.join(_base(), "tts_settings.json")
+
+
+def _load_settings():
+    try:
+        with open(_settings_path(), encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_settings(data):
+    with open(_settings_path(), "w", encoding="utf-8") as f:
+        json.dump(data, f)
+
+
+# ------------------------------------------------- production voiceover
+#
+# Which engine speaks a production's narration. "ai33" is the pipeline's
+# own engine (its key lives in the AI33 key file, not in tts_keys.json);
+# every other choice is one of this module's providers, spoken through
+# the very same generate() the Voice panel uses. Edge TTS is the free
+# choice: no key at all.
+
+VOICEOVER_PROVIDERS = [
+    ("ai33", "AI33 (production default)"),
+    ("elevenlabs", "ElevenLabs"),
+    ("cartesia", "Cartesia"),
+    ("sarvam", "Sarvam AI"),
+    ("google", "Google Cloud TTS"),
+    ("openai", "OpenAI TTS"),
+    ("azure", "Azure Speech"),
+    ("edge", "Edge TTS (Microsoft) — FREE, no key"),
+    ("kokoro", "Kokoro (Local)"),
+]
+
+# A safe first voice per provider, used when a project's saved voice
+# belongs to another engine (an AI33 clone name means nothing to Sarvam).
+_VOICEOVER_DEFAULT_VOICE = {
+    "edge": "hi-IN-MadhurNeural",
+    "sarvam": "anushka",
+    "openai": "alloy",
+    "kokoro": "hf_alpha",
+}
+
+
+def get_voiceover_provider():
+    provider = (_load_settings().get("voiceover_provider") or "").strip()
+    valid = {p for p, _ in VOICEOVER_PROVIDERS}
+    return provider if provider in valid else "ai33"
+
+
+def set_voiceover_provider(provider):
+    provider = (provider or "").strip()
+    valid = {p for p, _ in VOICEOVER_PROVIDERS}
+    if provider not in valid:
+        return {"ok": False, "error": "unknown provider"}
+    data = _load_settings()
+    data["voiceover_provider"] = provider
+    try:
+        _save_settings(data)
+    except OSError as e:
+        return {"ok": False, "error": str(e)[:200]}
+    return {"ok": True, **voiceover_status()}
+
+
+def voiceover_status():
+    """The production choice + whether it can actually speak right now.
+
+    `ready` is True/False for this module's own providers. For "ai33"
+    it is None: that key lives in the AI33 key file, which the window
+    and the pipeline each read their own way — the pipeline falls back
+    to free Edge TTS, loudly, when the AI33 key is missing.
+    """
+    provider = get_voiceover_provider()
+    name = dict(VOICEOVER_PROVIDERS).get(provider, provider)
+    if provider == "ai33":
+        ready, hint = None, ""
+    elif PROVIDERS[provider]["needs_key"]:
+        ready = bool(get_key(provider))
+        hint = "" if ready else (
+            "%s ki API key saved nahi hai — neeche usi provider ki key "
+            "dalo, warna production voiceover nahi banega." % name)
+    else:
+        ready, hint = True, ""
+    return {"voiceover_provider": provider,
+            "voiceover_provider_name": name,
+            "voiceover_ready": ready,
+            "voiceover_hint": hint,
+            "voiceover_providers": [{"id": p, "name": n}
+                                    for p, n in VOICEOVER_PROVIDERS]}
+
+
+def default_voice(provider):
+    return _VOICEOVER_DEFAULT_VOICE.get(provider, "")
 
 
 def get_entry(provider):
@@ -157,13 +262,15 @@ def providers_status_single(provider):
 
 def providers_status():
     return {"ok": True,
-            "providers": [providers_status_single(p) for p in PROVIDERS]}
+            "providers": [providers_status_single(p) for p in PROVIDERS],
+            **voiceover_status()}
 
 
 def _need_key(provider):
     key = get_key(provider)
     if not key:
-        raise RuntimeError("%s ki API key pehle Voice panel me dalo."
+        raise RuntimeError("%s ki API key pehle API Keys window ya "
+                           "Voice panel me dalo."
                            % PROVIDERS[provider]["name"])
     return key
 
@@ -366,6 +473,22 @@ def generate(provider, voice_id, text, language=""):
         raise RuntimeError("Pehle awaaz (voice) chuno - 'Voices load karo' dabao.")
     fn = _GEN[provider]
     return fn(voice_id, text, (language or "").strip())
+
+
+def generate_to_file(provider, voice_id, text, out_path, language=""):
+    """generate(), then copy the audio to an exact path.
+
+    The production pipeline speaks a script piece by piece and joins the
+    pieces itself, so it needs each piece at its own path rather than in
+    `tts_outputs/`. The synthesis is the panel's own — nothing about the
+    provider calls is duplicated here.
+    """
+    import shutil
+    res = generate(provider, voice_id, text, language)
+    src = os.path.join(_out_dir(), res["file"])
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    shutil.copyfile(src, out_path)
+    return res
 
 
 def _gen_elevenlabs(voice_id, text, language):

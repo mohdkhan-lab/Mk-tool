@@ -2945,6 +2945,11 @@ class Handler(BaseHTTPRequestHandler):
                                                b.get("key", ""),
                                                b.get("region", "")))
 
+            if path == "/api/tts/voiceover-provider":
+                b = body or {}
+                return self._json(tts.set_voiceover_provider(
+                    b.get("provider", "")))
+
             if path == "/api/tts/generate":
                 b = body or {}
                 try:

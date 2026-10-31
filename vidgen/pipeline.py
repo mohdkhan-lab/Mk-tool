@@ -60,14 +60,30 @@ def need(pid, name, why):
 
 def do_voice(args):
     import voice
-    key = ai33_key(args.key)
-    if not key:
-        sys.exit("no ai33 key — put one in ai_avatar_pipeline/.ai33_key")
+    # The buyer picks the production voiceover engine in API Keys
+    # (default AI33). The choice is saved beside the TTS keys, so this
+    # separate process reads the same one the window shows.
+    engine = "ai33"
+    try:
+        import tts as _tts
+        engine = _tts.get_voiceover_provider()
+    except Exception:
+        engine = "ai33"
+    key = ai33_key(args.key) or ""
+    if engine == "ai33" and not key:
+        # Never fail quietly on a missing AI33 key: say so in the log
+        # and speak with free Edge TTS instead, so the film still gets
+        # a voice. Adding the AI33 key (API Keys, top right) switches
+        # production back to AI33 on the next run.
+        log("voice", "AI33 key nahi mili - voiceover FREE Edge TTS se "
+                     "ban raha hai. AI33 chahiye to API Keys me AI33 "
+                     "key dalo.")
+        engine = "edge"
     script = args.script or p(args.id, "script.txt")
     if not os.path.isfile(script):
         sys.exit(f"{script} is missing — write the narration first")
     voice.generate(args.id, script, args.voice, key, speed=args.speed,
-                   force=args.force, target=args.target)
+                   force=args.force, target=args.target, engine=engine)
 
 
 def do_rows(args):

@@ -4034,6 +4034,39 @@ html #productionSettingsTab .settings-shell > .card-panel > #captionGroup,
           </div>
         </div>
 
+        <!-- Production voiceover provider -->
+        <div class="ks-card">
+          <div class="ks-head">
+            <label class="input-label" style="margin-bottom: 0;">Voiceover Provider <span class="ks-sub">production narration kis engine se bane</span></label>
+            <span id="voProviderPill" class="stat-pill" style="font-size: 10.5px; padding: 2px 7px;">...</span>
+          </div>
+          <div class="ks-row">
+            <select id="voProviderSelect" style="flex:1; min-width:0; font-size:12.5px;">
+              <option value="ai33">AI33 (production default)</option>
+              <option value="elevenlabs">ElevenLabs</option>
+              <option value="cartesia">Cartesia</option>
+              <option value="sarvam">Sarvam AI</option>
+              <option value="google">Google Cloud TTS</option>
+              <option value="openai">OpenAI TTS</option>
+              <option value="azure">Azure Speech</option>
+              <option value="edge">Edge TTS (Microsoft) — FREE, no key</option>
+              <option value="kokoro">Kokoro (Local)</option>
+            </select>
+          </div>
+          <div class="ks-msg" id="voProviderMsg"></div>
+          <div class="ks-note" id="voProviderNote">AI33 ki key sirf paid plan par chalti hai. Key na ho to FREE Edge TTS chuno — bina key ke voiceover ban jayega. Dusre providers ki keys neeche wale hisse me dalo (yehi keys 🎙 Voice panel me bhi chalti hain — ek hi store hai).</div>
+        </div>
+
+        <!-- More voiceover (TTS) keys — same store as the Voice panel -->
+        <div class="ks-card">
+          <div class="ks-head">
+            <label class="input-label" style="margin-bottom: 0;">Voiceover Keys <span class="ks-sub">dusre TTS providers</span></label>
+          </div>
+          <div id="ttsKeyRows" style="display:flex; flex-direction:column; gap:10px;"><div class="vc-hint">Loading...</div></div>
+          <div class="ks-msg" id="ttsKeysMsg"></div>
+          <div class="ks-note">Ye keys usi jagah save hoti hain jahan 🎙 Voice panel apni keys rakhta hai — ek jagah dalo, dono jagah chalegi.</div>
+        </div>
+
         <!-- Gemini API Keys (several, used in turn) -->
         <div class="ks-card">
           <div class="ks-head">
@@ -8740,6 +8773,83 @@ html #productionSettingsTab .settings-shell > .card-panel > #captionGroup,
     renderList(); refreshPills();
   });
 
+  // ---- Voiceover provider choice + the other TTS providers' keys.
+  // Keys go through /api/tts/key — the SAME store the 🎙 Voice panel
+  // uses (tts_keys.json) — so a key saved here works there too, and a
+  // key saved there shows up here as already saved.
+  const TTS_KEY_PROVIDERS = ["elevenlabs", "cartesia", "sarvam", "google", "openai", "azure"];
+
+  async function renderTtsKeys() {
+    const box = $("ttsKeyRows");
+    if (!box) return;
+    let j;
+    try { j = await (await fetch("/api/tts/status", { cache: "no-store" })).json(); }
+    catch (e) { box.innerHTML = '<div class="vc-hint">Could not reach the app.</div>'; return; }
+    const byId = {};
+    ((j && j.providers) || []).forEach(p => { byId[p.id] = p; });
+    const sel = $("voProviderSelect");
+    if (sel && j.voiceover_provider) sel.value = j.voiceover_provider;
+    const pill = $("voProviderPill");
+    if (pill) {
+      if (j.voiceover_provider === "edge") pill.textContent = "FREE — ready";
+      else if (j.voiceover_ready === true) pill.textContent = "Key saved — ready";
+      else if (j.voiceover_ready === false) pill.textContent = "Key missing";
+      else pill.textContent = "AI33";
+    }
+    const note = $("voProviderNote");
+    if (note && j.voiceover_hint) note.textContent = j.voiceover_hint;
+    box.innerHTML = TTS_KEY_PROVIDERS.map(id => {
+      const p = byId[id] || { name: id, needs_key: true, has_key: false, key_hint: "" };
+      const status = p.has_key
+        ? '<span style="color:#6EE7B7; font-weight:700;">Saved ✓</span>'
+        : '<span style="color:var(--faint);">Not set</span>';
+      const region = p.needs_region
+        ? `<input type="text" id="ttsReg_${id}" placeholder="Region (eastus)" value="${esc(p.region || "")}" style="width:120px; flex:none;">` : "";
+      return `<div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <span style="font-size:12.5px; font-weight:600;">${esc(p.name)}</span>${status}
+        </div>
+        <div class="ks-row">
+          <input type="password" id="ttsKey_${id}" placeholder="${esc(p.key_hint || "API key paste karo")}" autocomplete="off">
+          ${region}
+          <button type="button" class="btn-primary" data-tts-save="${id}">Save</button>
+        </div>
+      </div>`;
+    }).join("") +
+      `<div style="display:flex; justify-content:space-between; align-items:center;">
+         <span style="font-size:12.5px; font-weight:600;">Edge TTS (Microsoft)</span>
+         <span style="color:#6EE7B7; font-weight:700;">Free — no key needed ✓</span>
+       </div>`;
+  }
+
+  const selEl = $("voProviderSelect");
+  if (selEl) selEl.addEventListener("change", async () => {
+    msg("voProviderMsg", "Saving...", "busy");
+    try {
+      const j = await post("/api/tts/voiceover-provider", { provider: selEl.value });
+      if (j && j.ok) { msg("voProviderMsg", "Voiceover provider: " + (j.voiceover_provider_name || selEl.value), "ok"); renderTtsKeys(); }
+      else msg("voProviderMsg", (j && j.error) || "Could not save.", "err");
+    } catch (e) { msg("voProviderMsg", "Could not reach the app.", "err"); }
+  });
+
+  const rowsBox = $("ttsKeyRows");
+  if (rowsBox) rowsBox.addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-tts-save]");
+    if (!b) return;
+    const id = b.dataset.ttsSave;
+    const inp = $("ttsKey_" + id);
+    const k = inp ? inp.value.trim() : "";
+    if (!k) { msg("ttsKeysMsg", "Pehle key paste karo.", "err"); return; }
+    const regEl = $("ttsReg_" + id);
+    b.disabled = true; msg("ttsKeysMsg", "Saving...", "busy");
+    try {
+      const j = await post("/api/tts/key", { provider: id, key: k, region: regEl ? regEl.value.trim() : "" });
+      if (j && j.ok) { msg("ttsKeysMsg", "Saved.", "ok"); if (inp) inp.value = ""; renderTtsKeys(); }
+      else msg("ttsKeysMsg", (j && j.error) || "Could not save the key.", "err");
+    } catch (err) { msg("ttsKeysMsg", "Could not reach the app.", "err"); }
+    b.disabled = false;
+  });
+
   // The Gemini box only ever ADDS a key; the older status code writes
   // "Configured: ..." into its placeholder, which reads like an edit box.
   const gIn = $("inputGeminiKey");
@@ -8750,9 +8860,9 @@ html #productionSettingsTab .settings-shell > .card-panel > #captionGroup,
 
   // Fill the list whenever the window opens (it is opened from several places).
   new MutationObserver(() => {
-    if (modal.classList.contains("open")) { msg("ai33Msg", ""); msg("geminiMsg", ""); renderList(); }
+    if (modal.classList.contains("open")) { msg("ai33Msg", ""); msg("geminiMsg", ""); renderList(); renderTtsKeys(); }
   }).observe(modal, { attributes: true, attributeFilter: ["class"] });
-  if (modal.classList.contains("open")) renderList();
+  if (modal.classList.contains("open")) { renderList(); renderTtsKeys(); }
 })();
 
 // Remove API keys + Reset workspace (Console tab). Self-contained; talks only to
