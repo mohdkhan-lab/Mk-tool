@@ -55,14 +55,27 @@ jobs:
       - name: Assemble app (source + ffmpeg + display fonts)
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
+          Write-Host "MARKER 1: robocopy app source"
           robocopy . payload\app /E /XD .git .github payload dist logo_samples scripts __pycache__ browser_profiles /XF Mk-Tool.exe Update-App.bat .server_session.json *.pyc my_cloned_voices.json | Out-Null
-          if ($LASTEXITCODE -ge 8) { exit $LASTEXITCODE }
+          $rc = $LASTEXITCODE
+          Write-Host "robocopy exit code: $rc"
+          if ($rc -ge 8) { throw "robocopy failed with exit code $rc" }
           New-Item -ItemType Directory -Force payload\app\tools\fonts | Out-Null
-          Invoke-WebRequest "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -OutFile ffmpeg.zip
+          Write-Host "MARKER 2: download ffmpeg"
+          curl.exe -fL --retry 3 --retry-delay 5 -o ffmpeg.zip "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg download failed, curl exit $LASTEXITCODE" }
+          Write-Host ("ffmpeg.zip bytes: " + (Get-Item ffmpeg.zip).Length)
+          Write-Host "MARKER 3: extract ffmpeg"
           Expand-Archive ffmpeg.zip -DestinationPath ff_tmp -Force
-          $bin = Get-ChildItem ff_tmp -Recurse -Directory -Filter bin | Select-Object -First 1
-          Copy-Item "$($bin.FullName)\ffmpeg.exe" payload\app\tools\
-          Copy-Item "$($bin.FullName)\ffprobe.exe" payload\app\tools\
+          $ffmpegExe = Get-ChildItem ff_tmp -Recurse -File -Filter ffmpeg.exe | Select-Object -First 1
+          $ffprobeExe = Get-ChildItem ff_tmp -Recurse -File -Filter ffprobe.exe | Select-Object -First 1
+          if (-not $ffmpegExe) { throw "ffmpeg.exe not found in ffmpeg.zip" }
+          if (-not $ffprobeExe) { throw "ffprobe.exe not found in ffmpeg.zip" }
+          Copy-Item $ffmpegExe.FullName payload\app\tools\
+          Copy-Item $ffprobeExe.FullName payload\app\tools\
+          Write-Host "MARKER 4: download fonts"
           $fonts = @{
             "LuckiestGuy.ttf" = "https://raw.githubusercontent.com/google/fonts/main/apache/luckiestguy/LuckiestGuy-Regular.ttf"
             "TitanOne.ttf"    = "https://raw.githubusercontent.com/google/fonts/main/ofl/titanone/TitanOne-Regular.ttf"
@@ -71,8 +84,14 @@ jobs:
             "Anton.ttf"       = "https://raw.githubusercontent.com/google/fonts/main/ofl/anton/Anton-Regular.ttf"
           }
           foreach ($k in $fonts.Keys) {
-            Invoke-WebRequest $fonts[$k] -OutFile "payload\app\tools\fonts\$k"
+            Write-Host "Downloading font $k"
+            curl.exe -fL --retry 3 --retry-delay 5 -o "payload\app\tools\fonts\$k" $fonts[$k]
+            if ($LASTEXITCODE -ne 0) { throw "font download failed for $k, curl exit $LASTEXITCODE" }
+            $len = (Get-Item "payload\app\tools\fonts\$k").Length
+            Write-Host "Font $k bytes: $len"
+            if ($len -lt 10000) { throw "font $k is only $len bytes - not a real TTF" }
           }
+          Write-Host "MARKER 5: assemble app done"
 
       - name: Compile launcher (MKStoryStudio.exe)
         shell: pwsh
