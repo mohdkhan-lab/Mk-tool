@@ -1,4 +1,4 @@
-name: Build and Release Mk-Tool Windows Installer
+name: Build and Release MK Story Studio
 
 on:
   push:
@@ -16,13 +16,80 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Read version (tag must match vidgen/version.py)
+        id: ver
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path vidgen/version.py -Pattern 'APP_VERSION\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+          if ($env:GITHUB_REF -like 'refs/tags/v*') {
+            $tag = $env:GITHUB_REF_NAME.TrimStart('v')
+            if ($tag -ne $v) {
+              Write-Error "Tag v$tag does not match APP_VERSION $v in vidgen/version.py"
+              exit 1
+            }
+          }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Building MK Story Studio v$v"
+
+      - name: Set up Python 3.14 (becomes the bundled runtime)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          architecture: 'x64'
+
+      - name: Assemble runtime (Python + packages + Playwright Chromium)
+        shell: pwsh
+        run: |
+          $base = Split-Path (Get-Command python).Source -Parent
+          New-Item -ItemType Directory -Force payload | Out-Null
+          robocopy $base payload\runtime /E /XD __pycache__ /XF *.pyc | Out-Null
+          if ($LASTEXITCODE -ge 8) { exit $LASTEXITCODE }
+          & payload\runtime\python.exe -m pip install --upgrade pip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & payload\runtime\python.exe -m pip install -r requirements.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:PLAYWRIGHT_BROWSERS_PATH = "$PWD\payload\runtime\ms-playwright"
+          & payload\runtime\python.exe -m playwright install chromium
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Assemble app (source + ffmpeg + display fonts)
+        shell: pwsh
+        run: |
+          robocopy . payload\app /E /XD .git .github payload dist logo_samples scripts __pycache__ browser_profiles /XF Mk-Tool.exe Update-App.bat .server_session.json *.pyc my_cloned_voices.json | Out-Null
+          if ($LASTEXITCODE -ge 8) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force payload\app\tools\fonts | Out-Null
+          Invoke-WebRequest "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ff_tmp -Force
+          $bin = Get-ChildItem ff_tmp -Recurse -Directory -Filter bin | Select-Object -First 1
+          Copy-Item "$($bin.FullName)\ffmpeg.exe" payload\app\tools\
+          Copy-Item "$($bin.FullName)\ffprobe.exe" payload\app\tools\
+          $fonts = @{
+            "LuckiestGuy.ttf" = "https://github.com/google/fonts/raw/main/ofl/luckiestguy/LuckiestGuy-Regular.ttf"
+            "TitanOne.ttf"    = "https://github.com/google/fonts/raw/main/ofl/titanone/TitanOne-Regular.ttf"
+            "LilitaOne.ttf"   = "https://github.com/google/fonts/raw/main/ofl/lilitaone/LilitaOne-Regular.ttf"
+            "Bangers.ttf"     = "https://github.com/google/fonts/raw/main/ofl/bangers/Bangers-Regular.ttf"
+            "Anton.ttf"       = "https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regular.ttf"
+          }
+          foreach ($k in $fonts.Keys) {
+            Invoke-WebRequest $fonts[$k] -OutFile "payload\app\tools\fonts\$k"
+          }
+
+      - name: Compile launcher (MKStoryStudio.exe)
+        shell: pwsh
+        run: |
+          $csc = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          & $csc /nologo /target:winexe /out:payload\MKStoryStudio.exe /win32icon:app.ico /reference:System.Windows.Forms.dll /reference:System.Drawing.dll launcher.cs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item app.ico payload\app.ico
+
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
 
-      - name: Compile Inno Setup Installer
+      - name: Compile Inno Setup installer
         shell: pwsh
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=${{ steps.ver.outputs.version }}" installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -30,4 +97,3 @@ jobs:
         with:
           files: dist/*.exe
           generate_release_notes: true
-
