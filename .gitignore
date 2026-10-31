@@ -16,3 +16,5 @@ dist/
 
 # CI build payload (GitHub Actions assembles it in the runner)
 payload/
+tts_keys.json
+tts_outputs/

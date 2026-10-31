@@ -3,7 +3,7 @@
 ; folder next to this script holds MKStoryStudio.exe + app\ + runtime\.
 ; MyAppVersion is passed on the ISCC command line from vidgen\version.py.
 #ifndef MyAppVersion
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.2.0"
 #endif
 #define MyAppName "MK Story Studio"
 #define MyAppPublisher "MK"

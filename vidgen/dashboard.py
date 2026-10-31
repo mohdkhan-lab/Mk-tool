@@ -48,6 +48,7 @@ import mix
 import batch                 # the queue; this page only reads and unlocks it
 import studio_api            # local helpers: projects, refs, profiles
 import updater               # in-app updates from GitHub Releases
+import tts                   # Voice panel: user-key TTS providers (v1.2.0)
 
 
 SUPERVISOR_IPC_PORT = 5153
@@ -2392,6 +2393,30 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/update/status":
             return self._json(updater.status())
 
+        if path == "/api/tts/status":
+            return self._json(tts.providers_status())
+
+        if path == "/api/tts/voices":
+            q = urllib.parse.parse_qs(self.path.partition("?")[2])
+            prov = (q.get("provider") or [""])[0]
+            try:
+                return self._json(tts.list_voices(prov))
+            except Exception as e:
+                return self._json({"ok": False, "error": str(e)[:300]})
+
+        if path == "/api/tts/quota":
+            q = urllib.parse.parse_qs(self.path.partition("?")[2])
+            prov = (q.get("provider") or [""])[0]
+            return self._json(tts.quota(prov))
+
+        if path == "/api/tts/audio":
+            q = urllib.parse.parse_qs(self.path.partition("?")[2])
+            fpath = tts.audio_path((q.get("name") or [""])[0])
+            if not fpath:
+                return self._json({"error": "file not found"}, 404)
+            ctype = "audio/wav" if fpath.endswith(".wav") else "audio/mpeg"
+            return self._stream_file(fpath, ctype)
+
         if path == "/api/plan":
             return self._json({"ok": True, **plan_info(refresh="refresh" in self.path)})
 
@@ -2913,6 +2938,22 @@ class Handler(BaseHTTPRequestHandler):
 
             if path == "/api/update/token":
                 return self._json(updater.save_token((body or {}).get("token", "")))
+
+            if path == "/api/tts/key":
+                b = body or {}
+                return self._json(tts.save_key(b.get("provider", ""),
+                                               b.get("key", ""),
+                                               b.get("region", "")))
+
+            if path == "/api/tts/generate":
+                b = body or {}
+                try:
+                    return self._json(tts.generate(b.get("provider", ""),
+                                                   b.get("voice", ""),
+                                                   b.get("text", ""),
+                                                   b.get("language", "")))
+                except Exception as e:
+                    return self._json({"ok": False, "error": str(e)[:300]})
 
             if path == "/api/editor/save":
                 res = save_editor_data(pid, body)
