@@ -2486,7 +2486,8 @@ html #productionSettingsTab .settings-shell > .card-panel > #captionGroup,
         <span class="brand-name">MK STORYSTUDIO</span>
         <span class="brand-badge" id="planBadge">STUDIO PRO</span>
         <span class="brand-byline" style="font-size: 9px; color: var(--faint); margin-left: 4px; font-weight: 600; text-transform: uppercase;">By MK</span>
-        <span id="appVersion" class="app-version" title="App version · last code update"></span>      </div>
+        <span id="appVersion" class="app-version" title="App version · last code update"></span>
+        <button id="updateBtn" class="update-btn" title="Check for updates">⬆ Update</button>      </div>
       <div class="project-select-wrapper" style="display: flex; align-items: center; gap: 6px; margin-left: 12px;">
         <span class="project-select-label">Project:</span>
         <select id="projectSelector"></select>
@@ -7834,6 +7835,104 @@ html #productionSettingsTab .settings-shell > .card-panel > #captionGroup,
     if (!el || !v || !v.version) return;
     el.textContent = 'v' + v.version;
   }).catch(() => {});
+})();
+
+(function updater() {
+  const btn = document.getElementById('updateBtn');
+  if (!btn) return;
+  document.body.insertAdjacentHTML('beforeend', `
+  <div id="updModal" style="display:none;position:fixed;inset:0;background:rgba(4,8,18,.66);z-index:9999;align-items:center;justify-content:center;">
+    <div style="width:min(440px,92vw);background:#131C30;color:#E8EEF9;border:1px solid #2A3A5C;border-radius:16px;padding:22px 22px 18px;box-shadow:0 24px 60px rgba(0,0,0,.5);font-family:inherit;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div style="font-size:15px;font-weight:800;letter-spacing:.02em;">MK Story Studio - Updates</div>
+        <button id="updClose" style="background:none;border:0;color:#8FA3C4;font-size:18px;cursor:pointer;line-height:1;">✕</button>
+      </div>
+      <div id="updStatus" style="font-size:12.5px;color:#A9BAD6;min-height:34px;line-height:1.55;">Checking...</div>
+      <div id="updBarWrap" style="display:none;height:8px;background:#0C1424;border-radius:99px;overflow:hidden;margin:10px 0 2px;">
+        <div id="updBar" style="height:100%;width:0%;background:linear-gradient(90deg,#34D399,#10B9A0);transition:width .3s;"></div>
+      </div>
+      <div id="updTokenRow" style="display:none;margin-top:10px;">
+        <div style="font-size:11.5px;color:#8FA3C4;margin-bottom:6px;">Repo private hai, isliye update download ke liye ek baar GitHub token chahiye (fine-grained, sirf is repo par <b>Contents: Read-only</b> permission). Token is PC par hi save hota hai.</div>
+        <div style="display:flex;gap:8px;">
+          <input id="updToken" type="password" placeholder="github_pat_..." style="flex:1;background:#0C1424;border:1px solid #2A3A5C;border-radius:9px;color:#E8EEF9;padding:8px 10px;font-size:12px;outline:none;">
+          <button id="updSaveToken" style="background:#22345A;color:#DCE7FA;border:1px solid #35507F;border-radius:9px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">Save</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+        <button id="updDownload" style="display:none;background:linear-gradient(135deg,#34D399,#10B9A0);color:#052019;border:0;border-radius:999px;padding:8px 18px;font-size:12.5px;font-weight:800;cursor:pointer;">Download Update</button>
+        <button id="updInstall" style="display:none;background:linear-gradient(135deg,#34D399,#10B9A0);color:#052019;border:0;border-radius:999px;padding:8px 18px;font-size:12.5px;font-weight:800;cursor:pointer;">Install &amp; Restart</button>
+      </div>
+    </div>
+  </div>`);
+  const $ = (id) => document.getElementById(id);
+  const modal = $('updModal'), status = $('updStatus');
+  const post = (p, body) => fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }).then(r => r.json());
+  let poll = null;
+
+  function show(el, on) { el.style.display = on ? '' : 'none'; }
+  function stopPoll() { if (poll) { clearInterval(poll); poll = null; } }
+
+  async function doCheck() {
+    stopPoll();
+    status.textContent = 'GitHub par latest version check ho raha hai...';
+    show($('updDownload'), false); show($('updInstall'), false);
+    show($('updTokenRow'), false); show($('updBarWrap'), false);
+    try {
+      const v = await (await fetch('/api/update/check?force=1', { cache: 'no-store' })).json();
+      if (!v.ok && v.error === 'token_required') {
+        status.textContent = v.message || 'GitHub token chahiye.';
+        show($('updTokenRow'), true);
+        return;
+      }
+      if (!v.ok) { status.textContent = v.message || 'Update check fail ho gaya.'; return; }
+      if (v.available) {
+        status.innerHTML = 'Naya update uplabdh hai: <b style="color:#fff">v' + v.latest + '</b> (abhi v' + v.current + ' chal raha hai).<br>Download karke install karo - koi terminal nahi khulega.';
+        show($('updDownload'), true);
+      } else {
+        status.innerHTML = 'Aap latest version par hain: <b style="color:#fff">v' + v.current + '</b>.';
+      }
+    } catch (e) { status.textContent = 'Update check fail ho gaya.'; }
+  }
+
+  btn.addEventListener('click', () => { modal.style.display = 'flex'; doCheck(); });
+  $('updClose').addEventListener('click', () => { stopPoll(); modal.style.display = 'none'; });
+  modal.addEventListener('click', (e) => { if (e.target === modal) { stopPoll(); modal.style.display = 'none'; } });
+  $('updSaveToken').addEventListener('click', async () => {
+    const t = $('updToken').value.trim();
+    if (!t) return;
+    await post('/api/update/token', { token: t });
+    $('updToken').value = '';
+    doCheck();
+  });
+  $('updDownload').addEventListener('click', async () => {
+    show($('updDownload'), false);
+    show($('updBarWrap'), true);
+    status.textContent = 'Update download ho raha hai...';
+    const r = await post('/api/update/download');
+    if (!r.ok) { status.textContent = r.message || 'Download shuru nahi ho paya.'; return; }
+    poll = setInterval(async () => {
+      try {
+        const s = await (await fetch('/api/update/status', { cache: 'no-store' })).json();
+        if (s.phase === 'downloading') {
+          $('updBar').style.width = (s.percent || 0) + '%';
+          status.textContent = 'Download ho raha hai... ' + (s.percent || 0) + '%';
+        } else if (s.phase === 'ready') {
+          stopPoll();
+          $('updBar').style.width = '100%';
+          status.innerHTML = 'Download pura ho gaya. <b style="color:#fff">Install &amp; Restart</b> dabao - installer khulega, wizard pura karo, phir app desktop shortcut se dobara kholo.';
+          show($('updInstall'), true);
+        } else if (s.phase === 'error') {
+          stopPoll();
+          status.textContent = 'Download fail: ' + (s.error || 'unknown error');
+        }
+      } catch (e) {}
+    }, 800);
+  });
+  $('updInstall').addEventListener('click', async () => {
+    show($('updInstall'), false);
+    status.textContent = 'Installer khul raha hai... app ab band ho jayegi. Wizard pura karke app dobara kholo.';
+    try { await post('/api/update/install'); } catch (e) {}
+  });
 })();
 </script>
 <script>

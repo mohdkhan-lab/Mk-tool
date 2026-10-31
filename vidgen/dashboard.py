@@ -47,6 +47,7 @@ from common import probe
 import mix
 import batch                 # the queue; this page only reads and unlocks it
 import studio_api            # local helpers: projects, refs, profiles
+import updater               # in-app updates from GitHub Releases
 
 
 SUPERVISOR_IPC_PORT = 5153
@@ -2385,6 +2386,12 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/version":
             return self._json(version_info())
 
+        if path == "/api/update/check":
+            return self._json(updater.check(force="force" in self.path))
+
+        if path == "/api/update/status":
+            return self._json(updater.status())
+
         if path == "/api/plan":
             return self._json({"ok": True, **plan_info(refresh="refresh" in self.path)})
 
@@ -2897,6 +2904,15 @@ class Handler(BaseHTTPRequestHandler):
                 job["clips_ok"] = True
                 batch.save_job(job)
                 return self._json({"ok": True, "jobs": batch.queue_rows()})
+
+            if path == "/api/update/download":
+                return self._json(updater.start_download())
+
+            if path == "/api/update/install":
+                return self._json(updater.install())
+
+            if path == "/api/update/token":
+                return self._json(updater.save_token((body or {}).get("token", "")))
 
             if path == "/api/editor/save":
                 res = save_editor_data(pid, body)

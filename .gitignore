@@ -13,3 +13,6 @@ dist/
 *.exe
 !Mk-Tool.exe
 
+
+# CI build payload (GitHub Actions assembles it in the runner)
+payload/
